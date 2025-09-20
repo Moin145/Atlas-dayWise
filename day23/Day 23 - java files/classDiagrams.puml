@@ -1,0 +1,7 @@
+'class diagrams
+@startuml
+    class Employee
+    abstract person
+    abstract class Human
+    annotation Test
+@enduml

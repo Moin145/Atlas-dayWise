@@ -1,0 +1,17 @@
+'packages
+@startuml
+    actor employee as emp
+    package ABC_bank{
+    actor manager as m
+    actor dm as d
+    }
+
+    package Rbi{
+    actor ceo as c
+    actor eml as e
+    }
+    m --> e
+    emp --> d
+    note left of e: hello, contact immediately
+    note right of emp: contact immediately
+@enduml

@@ -1,0 +1,22 @@
+' actors in umel
+@startuml
+    :1st actor:
+    :my 2nd \n actor: as Student1
+    actor : student03: as Leader
+    actor Principle
+
+    Student1 --> Principle: good morning mam
+
+    "main Admin" as admin
+    admin --> (School App)
+    "india" as (School App)
+    'skinparam actorstyle awesome
+    'Awesome --> home
+   ' home --> punjab
+  '  :teacher: --> (school apps)
+   ' :teacher: --> (clg app)'
+
+    'hollow man
+    skinparam actorstyle Hollow
+    hollor --> (pat)
+@enduml
