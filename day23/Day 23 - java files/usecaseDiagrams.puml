@@ -1,0 +1,8 @@
+' use case diagram
+' oval shape
+@startuml
+    (1st usecase)
+    (2nd usecase) as uc02
+     usecase uc3
+    usecase (4th usecase \n diagram) as uc4
+@enduml

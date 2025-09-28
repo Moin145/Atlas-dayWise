@@ -1,0 +1,76 @@
+@startuml
+'===============================
+' Shopping System UML
+'===============================
+
+package "shopping" {
+    abstract class Shopping {
+        +browseItems()
+        +selectItem()
+    }
+
+    class MobileShopping {
+    }
+    class WebShopping {
+    }
+    class MailShopping {
+    }
+    class PhoneShopping {
+    }
+
+    MobileShopping ..|> Shopping
+    WebShopping ..|> Shopping
+    MailShopping ..|> Shopping
+    PhoneShopping ..|> Shopping
+}
+
+package "cart" {
+    class Cart {
+        +addItem(item: Item)
+        +removeItem(item: Item)
+        +getItems(): List<Item>
+    }
+}
+
+package "customer" {
+    class Customer {
+        +name: String
+        +email: String
+        +viewCart()
+    }
+}
+
+package "payment" {
+    class Payment {
+        +pay(amount: float)
+    }
+}
+
+package "inventory" {
+    class Inventory {
+        +checkStock(item: Item): boolean
+        +updateStock(item: Item, quantity: int)
+    }
+}
+
+package "items" {
+    class Item {
+        +name: String
+        +price: float
+    }
+}
+
+'===============================
+' Relationships
+'===============================
+
+Customer --> Cart
+Cart --> Item
+Shopping --> Cart
+Shopping --> Inventory
+Shopping --> Customer
+Shopping --> Payment
+Inventory --> Item
+Payment --> Customer
+
+@enduml

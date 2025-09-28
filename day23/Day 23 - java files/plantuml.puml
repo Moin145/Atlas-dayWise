@@ -1,0 +1,13 @@
+@startuml
+autonumber
+Prasunamba -> Sukh: Congratulations to you all
+Sukh --> Prasunamba: Thank you Meher
+autonumber 10 3 "<font color = red> <b> seq 0"
+
+Prasunamba -> Sukh: Good Luck for Module3
+Sukh --> Prasunamba: Thank you
+
+Prasunamba -> Sukh: Good Job guys
+Sukh --> Prasunamba: Thank you so much
+
+@enduml
