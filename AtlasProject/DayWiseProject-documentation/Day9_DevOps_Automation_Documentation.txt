@@ -1,0 +1,688 @@
+BANKING SYSTEM PROJECT - DAY 9: DEVOPS AUTOMATION IMPLEMENTATION
+=================================================================
+
+OVERVIEW
+--------
+Day 9 focuses on implementing DevOps automation and Linux cron jobs for settlement processing. This implementation provides automated batch processing, monitoring, and maintenance capabilities for the banking system operations.
+
+SETTLEMENT AUTOMATION IMPLEMENTATION
+------------------------------------
+
+1. SETTLEMENT RUNNER SERVICE
+   @Component
+   public class SettlementRunner {
+       
+       @Autowired
+       private SettlementQueue settlementQueue;
+       
+       @Autowired
+       private TransactionRepository transactionRepository;
+       
+       @Autowired
+       private AccountRepository accountRepository;
+       
+       @Autowired
+       private AuditService auditService;
+       
+       public static void main(String[] args) {
+           SpringApplication.run(SettlementRunner.class, args);
+       }
+       
+       @PostConstruct
+       public void runSettlement() {
+           runSettlement();
+       }
+   }
+
+2. BATCH SETTLEMENT PROCESSING
+   public void runSettlement() {
+       System.out.println("Starting batch settlement process...");
+       
+       try {
+           // Get all pending transactions
+           List<Transaction> pendingTransactions = settlementQueue.getPendingTransactions();
+           
+           if (pendingTransactions.isEmpty()) {
+               System.out.println("No pending transactions to settle.");
+               return;
+           }
+           
+           System.out.println("Found " + pendingTransactions.size() + " transactions to settle");
+           
+           int processedCount = 0;
+           int failedCount = 0;
+           
+           // Process each transaction
+           for (Transaction transaction : pendingTransactions) {
+               try {
+                   // Simulate settlement processing
+                   processSettlementTransaction(transaction);
+                   settlementQueue.markAsProcessed(transaction.getTransactionId());
+                   processedCount++;
+                   
+                   System.out.println("Settled transaction: " + transaction.getTransactionId());
+                   
+               } catch (Exception e) {
+                   failedCount++;
+                   System.err.println("Failed to settle transaction " + transaction.getTransactionId() + ": " + e.getMessage());
+               }
+           }
+           
+           // Log settlement results
+           auditService.logSuccess("SYSTEM", "BATCH_SETTLEMENT", "SETTLEMENT", "BATCH", 
+                   "Settlement completed. Processed: " + processedCount + ", Failed: " + failedCount);
+           
+           System.out.println("Settlement completed!");
+           System.out.println("Processed: " + processedCount);
+           System.out.println("Failed: " + failedCount);
+           
+       } catch (Exception e) {
+           System.err.println("Settlement process failed: " + e.getMessage());
+           auditService.logFailure("SYSTEM", "BATCH_SETTLEMENT", "SETTLEMENT", "BATCH", 
+                   "Settlement process failed", e.getMessage());
+           throw e;
+       }
+   }
+
+LINUX CRON JOB IMPLEMENTATION
+-----------------------------
+
+1. SETTLEMENT SHELL SCRIPT
+   #!/bin/bash
+   
+   # Banking System - Batch Settlement Script
+   # This script processes queued transactions for settlement
+   # Should be run as a cron job (e.g., daily at 2 AM)
+   
+   # Configuration
+   JAVA_HOME="/usr/lib/jvm/java-17-openjdk"
+   APP_HOME="/opt/banking-system"
+   LOG_DIR="/var/log/banking-system"
+   JAR_FILE="$APP_HOME/banking-system-1.0.0.jar"
+   
+   # Create log directory if it doesn't exist
+   mkdir -p $LOG_DIR
+   
+   # Log file with timestamp
+   LOG_FILE="$LOG_DIR/settlement-$(date +%Y%m%d-%H%M%S).log"
+   
+   # Function to log messages
+   log_message() {
+       echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a $LOG_FILE
+   }
+   
+   # Function to send email notification (optional)
+   send_notification() {
+       local subject="$1"
+       local message="$2"
+       
+       # Uncomment and configure if you want email notifications
+       # echo "$message" | mail -s "$subject" admin@bankingsystem.com
+       log_message "NOTIFICATION: $subject - $message"
+   }
+   
+   # Start settlement process
+   log_message "=========================================="
+   log_message "Starting Banking System Settlement Process"
+   log_message "=========================================="
+   
+   # Check if Java is available
+   if ! command -v java &> /dev/null; then
+       log_message "ERROR: Java is not installed or not in PATH"
+       send_notification "Settlement Failed" "Java is not available"
+       exit 1
+   fi
+   
+   # Check if JAR file exists
+   if [ ! -f "$JAR_FILE" ]; then
+       log_message "ERROR: JAR file not found: $JAR_FILE"
+       send_notification "Settlement Failed" "JAR file not found"
+       exit 1
+   fi
+   
+   # Set Java options
+   JAVA_OPTS="-Xmx512m -Xms256m"
+   JAVA_OPTS="$JAVA_OPTS -Dspring.profiles.active=production"
+   JAVA_OPTS="$JAVA_OPTS -Dlogging.file.name=$LOG_DIR/banking-system.log"
+   
+   # MongoDB connection (adjust as needed)
+   export SPRING_DATA_MONGODB_URI="mongodb://localhost:27017/banking_system"
+   
+   # DynamoDB configuration (adjust as needed)
+   export AWS_REGION="ap-south-1"
+   export AWS_ACCESS_KEY_ID="your-access-key"
+   export AWS_SECRET_ACCESS_KEY="your-secret-key"
+   
+   log_message "Java version: $(java -version 2>&1 | head -n 1)"
+   log_message "JAR file: $JAR_FILE"
+   log_message "Log file: $LOG_FILE"
+   
+   # Run settlement process
+   log_message "Starting settlement process..."
+   
+   # Execute the settlement
+   java $JAVA_OPTS -jar $JAR_FILE --spring.main.class=com.bankingsystem.SettlementRunner 2>&1 | tee -a $LOG_FILE
+   
+   # Capture exit code
+   EXIT_CODE=${PIPESTATUS[0]}
+   
+   # Check if settlement was successful
+   if [ $EXIT_CODE -eq 0 ]; then
+       log_message "Settlement process completed successfully"
+       send_notification "Settlement Completed" "Daily settlement process completed successfully"
+   else
+       log_message "ERROR: Settlement process failed with exit code $EXIT_CODE"
+       send_notification "Settlement Failed" "Daily settlement process failed with exit code $EXIT_CODE"
+   fi
+   
+   # Clean up old log files (keep last 30 days)
+   find $LOG_DIR -name "settlement-*.log" -mtime +30 -delete 2>/dev/null
+   
+   log_message "Settlement process finished"
+   log_message "=========================================="
+   
+   exit $EXIT_CODE
+
+2. WINDOWS BATCH SCRIPT
+   @echo off
+   REM Banking System - Windows Batch Settlement Script
+   REM This script processes queued transactions for settlement
+   REM Should be run as a scheduled task (e.g., daily at 2 AM)
+   
+   REM Configuration
+   set JAVA_HOME=C:\Program Files\Java\jdk-17
+   set APP_HOME=C:\opt\banking-system
+   set LOG_DIR=C:\var\log\banking-system
+   set JAR_FILE=%APP_HOME%\banking-system-1.0.0.jar
+   
+   REM Create log directory if it doesn't exist
+   if not exist %LOG_DIR% mkdir %LOG_DIR%
+   
+   REM Log file with timestamp
+   for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "dt=%%a"
+   set "YY=%dt:~2,2%" & set "YYYY=%dt:~0,4%" & set "MM=%dt:~4,2%" & set "DD=%dt:~6,2%"
+   set "HH=%dt:~8,2%" & set "Min=%dt:~10,2%" & set "Sec=%dt:~12,2%"
+   set "LOG_FILE=%LOG_DIR%\settlement-%YYYY%%MM%%DD%-%HH%%Min%%Sec%.log"
+   
+   REM Start settlement process
+   echo [%date% %time%] ========================================== >> %LOG_FILE%
+   echo [%date% %time%] Starting Banking System Settlement Process >> %LOG_FILE%
+   echo [%date% %time%] ========================================== >> %LOG_FILE%
+   
+   REM Check if Java is available
+   java -version >nul 2>&1
+   if %errorlevel% neq 0 (
+       echo [%date% %time%] ERROR: Java is not installed or not in PATH >> %LOG_FILE%
+       exit /b 1
+   )
+   
+   REM Check if JAR file exists
+   if not exist "%JAR_FILE%" (
+       echo [%date% %time%] ERROR: JAR file not found: %JAR_FILE% >> %LOG_FILE%
+       exit /b 1
+   )
+   
+   REM Set Java options
+   set JAVA_OPTS=-Xmx512m -Xms256m
+   set JAVA_OPTS=%JAVA_OPTS% -Dspring.profiles.active=production
+   set JAVA_OPTS=%JAVA_OPTS% -Dlogging.file.name=%LOG_DIR%\banking-system.log
+   
+   REM MongoDB connection (adjust as needed)
+   set SPRING_DATA_MONGODB_URI=mongodb://localhost:27017/banking_system
+   
+   REM DynamoDB configuration (adjust as needed)
+   set AWS_REGION=ap-south-1
+   
+   REM Execute the settlement
+   java %JAVA_OPTS% -jar %JAR_FILE% --spring.main.class=com.bankingsystem.SettlementRunner >> %LOG_FILE% 2>&1
+   
+   REM Check if settlement was successful
+   if %errorlevel% equ 0 (
+       echo [%date% %time%] Settlement process completed successfully >> %LOG_FILE%
+   ) else (
+       echo [%date% %time%] ERROR: Settlement process failed with exit code %errorlevel% >> %LOG_FILE%
+   )
+   
+   echo [%date% %time%] Settlement process finished >> %LOG_FILE%
+   echo [%date% %time%] ========================================== >> %LOG_FILE%
+
+CRON JOB CONFIGURATION
+----------------------
+
+1. LINUX CRON JOB SETUP
+   # Edit crontab
+   crontab -e
+   
+   # Add the following entries:
+   
+   # Daily settlement at 2:00 AM
+   0 2 * * * /opt/banking-system/scripts/settlement.sh
+   
+   # Weekly cleanup at 3:00 AM every Sunday
+   0 3 * * 0 /opt/banking-system/scripts/cleanup.sh
+   
+   # Monthly report generation at 4:00 AM on the 1st of every month
+   0 4 1 * * /opt/banking-system/scripts/monthly-report.sh
+   
+   # Health check every 15 minutes
+   */15 * * * * /opt/banking-system/scripts/health-check.sh
+   
+   # Database backup at 1:00 AM daily
+   0 1 * * * /opt/banking-system/scripts/backup-database.sh
+
+2. WINDOWS TASK SCHEDULER SETUP
+   # Create scheduled task using schtasks command
+   schtasks /create /tn "Banking System Settlement" /tr "C:\opt\banking-system\scripts\settlement.bat" /sc daily /st 02:00
+   
+   # Create cleanup task
+   schtasks /create /tn "Banking System Cleanup" /tr "C:\opt\banking-system\scripts\cleanup.bat" /sc weekly /d SUN /st 03:00
+   
+   # Create health check task
+   schtasks /create /tn "Banking System Health Check" /tr "C:\opt\banking-system\scripts\health-check.bat" /sc minute /mo 15
+
+MONITORING AND HEALTH CHECKS
+----------------------------
+
+1. HEALTH CHECK SCRIPT
+   #!/bin/bash
+   
+   # Banking System Health Check Script
+   # This script checks the health of various system components
+   
+   LOG_DIR="/var/log/banking-system"
+   LOG_FILE="$LOG_DIR/health-check-$(date +%Y%m%d).log"
+   
+   log_message() {
+       echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a $LOG_FILE
+   }
+   
+   # Check MongoDB connection
+   check_mongodb() {
+       if mongo --eval "db.adminCommand('ping')" --quiet > /dev/null 2>&1; then
+           log_message "MongoDB: OK"
+           return 0
+       else
+           log_message "MongoDB: FAILED"
+           return 1
+       fi
+   }
+   
+   # Check DynamoDB connection
+   check_dynamodb() {
+       if aws dynamodb describe-table --table-name BankingAuditLogs --region ap-south-1 > /dev/null 2>&1; then
+           log_message "DynamoDB: OK"
+           return 0
+       else
+           log_message "DynamoDB: FAILED"
+           return 1
+       fi
+   }
+   
+   # Check disk space
+   check_disk_space() {
+       DISK_USAGE=$(df / | awk 'NR==2 {print $5}' | sed 's/%//')
+       if [ $DISK_USAGE -gt 80 ]; then
+           log_message "Disk Space: WARNING - ${DISK_USAGE}% used"
+           return 1
+       else
+           log_message "Disk Space: OK - ${DISK_USAGE}% used"
+           return 0
+       fi
+   }
+   
+   # Check memory usage
+   check_memory() {
+       MEMORY_USAGE=$(free | awk 'NR==2{printf "%.0f", $3*100/$2}')
+       if [ $MEMORY_USAGE -gt 80 ]; then
+           log_message "Memory: WARNING - ${MEMORY_USAGE}% used"
+           return 1
+       else
+           log_message "Memory: OK - ${MEMORY_USAGE}% used"
+           return 0
+       fi
+   }
+   
+   # Check Java process
+   check_java_process() {
+       if pgrep -f "banking-system" > /dev/null; then
+           log_message "Java Process: OK"
+           return 0
+       else
+           log_message "Java Process: NOT RUNNING"
+           return 1
+       fi
+   }
+   
+   # Main health check
+   main() {
+       log_message "Starting health check..."
+       
+       MONGODB_OK=$?
+       DYNAMODB_OK=$?
+       DISK_OK=$?
+       MEMORY_OK=$?
+       JAVA_OK=$?
+       
+       if [ $MONGODB_OK -eq 0 ] && [ $DYNAMODB_OK -eq 0 ] && [ $DISK_OK -eq 0 ] && [ $MEMORY_OK -eq 0 ] && [ $JAVA_OK -eq 0 ]; then
+           log_message "Health Check: ALL SYSTEMS OK"
+           exit 0
+       else
+           log_message "Health Check: ISSUES DETECTED"
+           exit 1
+       fi
+   }
+   
+   main
+
+2. CLEANUP SCRIPT
+   #!/bin/bash
+   
+   # Banking System Cleanup Script
+   # This script cleans up old log files and temporary data
+   
+   LOG_DIR="/var/log/banking-system"
+   TEMP_DIR="/tmp/banking-system"
+   
+   log_message() {
+       echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+   }
+   
+   # Clean up old log files (keep last 30 days)
+   cleanup_logs() {
+       log_message "Cleaning up old log files..."
+       find $LOG_DIR -name "*.log" -mtime +30 -delete
+       log_message "Log cleanup completed"
+   }
+   
+   # Clean up temporary files
+   cleanup_temp() {
+       log_message "Cleaning up temporary files..."
+       find $TEMP_DIR -name "*.tmp" -mtime +1 -delete
+       log_message "Temp cleanup completed"
+   }
+   
+   # Clean up MongoDB old data (optional)
+   cleanup_mongodb() {
+       log_message "Cleaning up old MongoDB data..."
+       mongo banking_system --eval "
+           db.auditlogs.deleteMany({
+               createdDate: { \$lt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
+           });
+           db.transactions.deleteMany({
+               transactionDate: { \$lt: new Date(Date.now() - 7 * 365 * 24 * 60 * 60 * 1000) }
+           });
+       "
+       log_message "MongoDB cleanup completed"
+   }
+   
+   # Main cleanup
+   main() {
+       log_message "Starting cleanup process..."
+       cleanup_logs
+       cleanup_temp
+       cleanup_mongodb
+       log_message "Cleanup process completed"
+   }
+   
+   main
+
+BACKUP AND RECOVERY
+-------------------
+
+1. DATABASE BACKUP SCRIPT
+   #!/bin/bash
+   
+   # Banking System Database Backup Script
+   # This script creates backups of MongoDB and DynamoDB data
+   
+   BACKUP_DIR="/opt/banking-system/backups"
+   DATE=$(date +%Y%m%d_%H%M%S)
+   
+   log_message() {
+       echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+   }
+   
+   # Create backup directory
+   mkdir -p $BACKUP_DIR
+   
+   # MongoDB backup
+   backup_mongodb() {
+       log_message "Starting MongoDB backup..."
+       mongodump --db banking_system --out $BACKUP_DIR/mongodb_$DATE
+       if [ $? -eq 0 ]; then
+           log_message "MongoDB backup completed successfully"
+       else
+           log_message "MongoDB backup failed"
+           exit 1
+       fi
+   }
+   
+   # DynamoDB backup (using AWS CLI)
+   backup_dynamodb() {
+       log_message "Starting DynamoDB backup..."
+       aws dynamodb create-backup \
+           --table-name BankingAuditLogs \
+           --backup-name "BankingAuditLogs_$DATE" \
+           --region ap-south-1
+       if [ $? -eq 0 ]; then
+           log_message "DynamoDB backup completed successfully"
+       else
+           log_message "DynamoDB backup failed"
+           exit 1
+       fi
+   }
+   
+   # Compress backups
+   compress_backups() {
+       log_message "Compressing backups..."
+       tar -czf $BACKUP_DIR/backup_$DATE.tar.gz -C $BACKUP_DIR mongodb_$DATE
+       log_message "Backup compression completed"
+   }
+   
+   # Clean up old backups (keep last 30 days)
+   cleanup_old_backups() {
+       log_message "Cleaning up old backups..."
+       find $BACKUP_DIR -name "backup_*.tar.gz" -mtime +30 -delete
+       log_message "Old backup cleanup completed"
+   }
+   
+   # Main backup process
+   main() {
+       log_message "Starting backup process..."
+       backup_mongodb
+       backup_dynamodb
+       compress_backups
+       cleanup_old_backups
+       log_message "Backup process completed"
+   }
+   
+   main
+
+DEPLOYMENT AUTOMATION
+---------------------
+
+1. DEPLOYMENT SCRIPT
+   #!/bin/bash
+   
+   # Banking System Deployment Script
+   # This script automates the deployment process
+   
+   APP_HOME="/opt/banking-system"
+   BACKUP_DIR="/opt/banking-system/backups"
+   JAR_FILE="banking-system-1.0.0.jar"
+   
+   log_message() {
+       echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+   }
+   
+   # Stop the application
+   stop_application() {
+       log_message "Stopping banking system application..."
+       pkill -f "banking-system"
+       sleep 10
+       log_message "Application stopped"
+   }
+   
+   # Backup current version
+   backup_current_version() {
+       log_message "Backing up current version..."
+       if [ -f "$APP_HOME/$JAR_FILE" ]; then
+           cp $APP_HOME/$JAR_FILE $BACKUP_DIR/$JAR_FILE.backup.$(date +%Y%m%d_%H%M%S)
+       fi
+       log_message "Backup completed"
+   }
+   
+   # Deploy new version
+   deploy_new_version() {
+       log_message "Deploying new version..."
+       if [ -f "target/$JAR_FILE" ]; then
+           cp target/$JAR_FILE $APP_HOME/
+           log_message "New version deployed"
+       else
+           log_message "ERROR: New JAR file not found"
+           exit 1
+       fi
+   }
+   
+   # Start the application
+   start_application() {
+       log_message "Starting banking system application..."
+       cd $APP_HOME
+       nohup java -jar $JAR_FILE --spring.profiles.active=production > /dev/null 2>&1 &
+       sleep 15
+       log_message "Application started"
+   }
+   
+   # Health check
+   health_check() {
+       log_message "Performing health check..."
+       sleep 30
+       if curl -f http://localhost:8080/actuator/health > /dev/null 2>&1; then
+           log_message "Health check passed"
+           return 0
+       else
+           log_message "Health check failed"
+           return 1
+       fi
+   }
+   
+   # Rollback if health check fails
+   rollback() {
+       log_message "Rolling back to previous version..."
+       stop_application
+       LATEST_BACKUP=$(ls -t $BACKUP_DIR/$JAR_FILE.backup.* | head -n1)
+       if [ -f "$LATEST_BACKUP" ]; then
+           cp $LATEST_BACKUP $APP_HOME/$JAR_FILE
+           start_application
+           log_message "Rollback completed"
+       else
+           log_message "ERROR: No backup found for rollback"
+           exit 1
+       fi
+   }
+   
+   # Main deployment process
+   main() {
+       log_message "Starting deployment process..."
+       stop_application
+       backup_current_version
+       deploy_new_version
+       start_application
+       
+       if health_check; then
+           log_message "Deployment completed successfully"
+       else
+           log_message "Deployment failed, rolling back..."
+           rollback
+           exit 1
+       fi
+   }
+   
+   main
+
+MONITORING AND ALERTING
+-----------------------
+
+1. LOG MONITORING SCRIPT
+   #!/bin/bash
+   
+   # Banking System Log Monitoring Script
+   # This script monitors logs for errors and sends alerts
+   
+   LOG_DIR="/var/log/banking-system"
+   ALERT_EMAIL="admin@bankingsystem.com"
+   
+   # Monitor for errors in the last hour
+   check_errors() {
+       ERROR_COUNT=$(find $LOG_DIR -name "*.log" -mmin -60 -exec grep -l "ERROR\|FATAL\|Exception" {} \; | wc -l)
+       
+       if [ $ERROR_COUNT -gt 0 ]; then
+           echo "ALERT: $ERROR_COUNT log files contain errors in the last hour" | mail -s "Banking System Error Alert" $ALERT_EMAIL
+       fi
+   }
+   
+   # Monitor for failed transactions
+   check_failed_transactions() {
+       FAILED_TRANSACTIONS=$(find $LOG_DIR -name "*.log" -mmin -60 -exec grep -c "Transaction.*failed" {} \; | awk '{sum += $1} END {print sum}')
+       
+       if [ $FAILED_TRANSACTIONS -gt 10 ]; then
+           echo "ALERT: $FAILED_TRANSACTIONS failed transactions detected in the last hour" | mail -s "Banking System Transaction Alert" $ALERT_EMAIL
+       fi
+   }
+   
+   # Main monitoring
+   main() {
+       check_errors
+       check_failed_transactions
+   }
+   
+   main
+
+2. PERFORMANCE MONITORING
+   #!/bin/bash
+   
+   # Banking System Performance Monitoring Script
+   # This script monitors system performance metrics
+   
+   LOG_DIR="/var/log/banking-system"
+   PERFORMANCE_LOG="$LOG_DIR/performance-$(date +%Y%m%d).log"
+   
+   log_metric() {
+       echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> $PERFORMANCE_LOG
+   }
+   
+   # Monitor CPU usage
+   monitor_cpu() {
+       CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | awk -F'%' '{print $1}')
+       log_metric "CPU Usage: ${CPU_USAGE}%"
+   }
+   
+   # Monitor memory usage
+   monitor_memory() {
+       MEMORY_USAGE=$(free | awk 'NR==2{printf "%.1f", $3*100/$2}')
+       log_metric "Memory Usage: ${MEMORY_USAGE}%"
+   }
+   
+   # Monitor disk I/O
+   monitor_disk_io() {
+       DISK_IO=$(iostat -d 1 1 | awk 'NR==4 {print $3}')
+       log_metric "Disk I/O: ${DISK_IO} KB/s"
+   }
+   
+   # Monitor network I/O
+   monitor_network_io() {
+       NETWORK_IO=$(cat /proc/net/dev | grep eth0 | awk '{print $2}')
+       log_metric "Network I/O: ${NETWORK_IO} bytes"
+   }
+   
+   # Main monitoring
+   main() {
+       monitor_cpu
+       monitor_memory
+       monitor_disk_io
+       monitor_network_io
+   }
+   
+   main
+
+This DevOps automation implementation provides comprehensive automation, monitoring, and maintenance capabilities for the banking system operations.

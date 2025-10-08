@@ -1,0 +1,6 @@
+com\bankingsystem\test\BankingSystemTestRunner$TestFunction.class
+com\bankingsystem\test\TestConfiguration.class
+com\bankingsystem\test\BankingSystemTestRunner.class
+com\bankingsystem\test\DepositServiceTest.class
+com\bankingsystem\test\BankingSystemTestSuite.class
+com\bankingsystem\test\TransferServiceTest.class

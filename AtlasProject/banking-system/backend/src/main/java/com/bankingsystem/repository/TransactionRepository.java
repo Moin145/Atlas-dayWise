@@ -36,5 +36,8 @@ public interface TransactionRepository extends MongoRepository<Transaction, Stri
     @Query("{'$or': [{'sourceAccount': ?0}, {'destinationAccount': ?0}], 'transactionDate': {$gte: ?1, $lte: ?2}}")
     List<Transaction> findAccountTransactionsByDateRange(Account account, LocalDateTime startDate, LocalDateTime endDate);
     
+    @Query("{'$or': [{'sourceAccount.accountNumber': ?0}, {'destinationAccount.accountNumber': ?0}]}")
+    List<Transaction> findByAccountNumber(String accountNumber);
+    
     boolean existsByTransactionId(String transactionId);
 }
